@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "compile": "hardhat compile && typechain --out-dir types --target ethers-v5 './artifacts/contracts/**/!(*.dbg).json'",
-    "compile:circuits": "circom circuits/withdraw.circom -r build/withdraw.r1cs",
+    "compile:circuits": "circom circuits/withdraw.circom -r build/withdraw.r1cs -w build/withdraw.wasm",
     "setup": "sh quickSetup.sh",
     "info": "snarkjs info -r build/withdraw.r1cs",
     "test": "hardhat test tests/*"

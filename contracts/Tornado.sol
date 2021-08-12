@@ -1,14 +1,24 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 pragma solidity ^0.7.3;
+pragma experimental ABIEncoderV2;
 
 import "./MerkleTreeWithHistory.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
+struct Proof {
+    uint256[2] a;
+    uint256[2][2] b;
+    uint256[2] c;
+}
+
 interface IVerifier {
-    function verifyProof(bytes calldata _proof, uint256[6] calldata _input)
-        external
-        returns (bool);
+    function verifyProof(
+        uint256[2] calldata a,
+        uint256[2][2] calldata b,
+        uint256[2] calldata c,
+        uint256[6] calldata input
+    ) external view returns (bool);
 }
 
 abstract contract Tornado is MerkleTreeWithHistory, ReentrancyGuard {
@@ -73,7 +83,7 @@ abstract contract Tornado is MerkleTreeWithHistory, ReentrancyGuard {
       - optional fee that goes to the transaction sender (usually a relay)
     */
     function withdraw(
-        bytes calldata _proof,
+        Proof calldata _proof,
         bytes32 _root,
         bytes32 _nullifierHash,
         address payable _recipient,
@@ -89,7 +99,9 @@ abstract contract Tornado is MerkleTreeWithHistory, ReentrancyGuard {
         require(isKnownRoot(_root), "Cannot find your merkle root"); // Make sure to use a recent one
         require(
             verifier.verifyProof(
-                _proof,
+                _proof.a,
+                _proof.b,
+                _proof.c,
                 [
                     uint256(_root),
                     uint256(_nullifierHash),

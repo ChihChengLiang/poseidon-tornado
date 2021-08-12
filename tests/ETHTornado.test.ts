@@ -8,19 +8,22 @@ import { createCode, generateABI } from "circomlib/src/poseidon_gencontract";
 // @ts-ignore
 import poseidon from "circomlib/src/poseidon";
 import { MerkleTree, Hasher } from "../src/merkleTree"
+// @ts-ignore
+import { groth16 } from "snarkjs"
+import path from "path";
 
 const ETH_AMOUNT = ethers.utils.parseEther("1")
 const HEIGHT = 20
 
-function hash2(input1: BigNumberish, input2: BigNumberish): string {
-    const hash = poseidon([input1, input2].map(x => BigNumber.from(x).toBigInt()))
+function poseidonHash(inputs: BigNumberish[]): string {
+    const hash = poseidon(inputs.map(x => BigNumber.from(x).toBigInt()))
     const bytes32 = ethers.utils.hexZeroPad(BigNumber.from(hash).toHexString(), 32)
     return bytes32
 }
 
 class PoseidonHasher implements Hasher {
     hash(left: string, right: string) {
-        return hash2(left, right)
+        return poseidonHash([left, right])
     }
 }
 
@@ -32,7 +35,11 @@ class Deposit {
         return new this(nullifier, secret)
     }
     get commitment() {
-        return hash2(this.nullifier, this.secret)
+        return poseidonHash([this.nullifier, this.secret])
+    }
+
+    get nullifierHash() {
+        return poseidonHash([this.nullifier])
     }
 }
 
@@ -64,5 +71,38 @@ describe("ETHTornado", function () {
         assert.equal(tree.totalElements, await tornado.nextIndex())
         assert.equal(await tree.root(), await tornado.roots(1))
 
+        const nullifierHash = deposit.nullifierHash
+        const recipient = ethers.utils.hexlify(ethers.utils.randomBytes(20))
+        const relayer = ethers.utils.hexlify(ethers.utils.randomBytes(20))
+        const fee = 0
+        const refund = 0
+
+        const { root, path_elements, path_index } = await tree.path(0)
+
+        const witness = {
+            // Public
+            root,
+            nullifierHash,
+            recipient,
+            relayer,
+            fee,
+            refund,
+            // Private
+            nullifier: BigNumber.from(deposit.nullifier).toBigInt(),
+            secret: BigNumber.from(deposit.secret).toBigInt(),
+            pathElements: path_elements,
+            pathIndices: path_index,
+        }
+
+        const wasmPath = path.join(__dirname, "../build/withdraw.wasm")
+        const zkeyPath = path.join(__dirname, "../build/circuit_final.zkey")
+
+        const { proof } = await groth16.fullProve(witness, wasmPath, zkeyPath);
+
+        const a: [BigNumberish, BigNumberish] = [proof.pi_a[0], proof.pi_a[1]]
+        const b: [[BigNumberish, BigNumberish], [BigNumberish, BigNumberish]] = [[proof.pi_b[0][1], proof.pi_b[0][0]], [proof.pi_b[1][1], proof.pi_b[1][0]]]
+        const c: [BigNumberish, BigNumberish] = [proof.pi_c[0], proof.pi_c[1]]
+
+        await tornado.withdraw({ a, b, c }, root, nullifierHash, recipient, relayer, fee, refund)
     })
 })
