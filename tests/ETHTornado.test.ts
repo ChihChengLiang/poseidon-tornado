@@ -64,6 +64,7 @@ describe("ETHTornado", function () {
         const receipt = await tx.wait()
         const events = await tornado.queryFilter(tornado.filters.Deposit(), receipt.blockHash)
         assert.equal(events[0].args.commitment, deposit.commitment)
+        console.log("Deposit gas cost", receipt.gasUsed.toNumber())
 
         const tree = new MerkleTree(HEIGHT, "test", new PoseidonHasher())
         assert.equal(await tree.root(), await tornado.roots(0))
@@ -103,6 +104,8 @@ describe("ETHTornado", function () {
         const b: [[BigNumberish, BigNumberish], [BigNumberish, BigNumberish]] = [[proof.pi_b[0][1], proof.pi_b[0][0]], [proof.pi_b[1][1], proof.pi_b[1][0]]]
         const c: [BigNumberish, BigNumberish] = [proof.pi_c[0], proof.pi_c[1]]
 
-        await tornado.withdraw({ a, b, c }, root, nullifierHash, recipient, relayer, fee, refund)
+        const txWithdraw = await tornado.withdraw({ a, b, c }, root, nullifierHash, recipient, relayer, fee, refund)
+        const receiptWithdraw = await txWithdraw.wait()
+        console.log("Withdraw gas cost", receiptWithdraw.gasUsed.toNumber())
     })
 })
