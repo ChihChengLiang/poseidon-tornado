@@ -28,18 +28,21 @@ class PoseidonHasher implements Hasher {
 }
 
 class Deposit {
-    private constructor(public nullifier: Uint8Array, public secret: Uint8Array) { }
+    private constructor(
+        public readonly nullifier: Uint8Array,
+        public leafIndex?: number
+    ) { }
     static new() {
-        const nullifier = ethers.utils.randomBytes(31)
-        const secret = ethers.utils.randomBytes(31)
-        return new this(nullifier, secret)
+        const nullifier = ethers.utils.randomBytes(15)
+        return new this(nullifier)
     }
     get commitment() {
-        return poseidonHash([this.nullifier, this.secret])
+        return poseidonHash([this.nullifier, 0])
     }
 
     get nullifierHash() {
-        return poseidonHash([this.nullifier])
+        if (!this.leafIndex && this.leafIndex !== 0) throw Error("leafIndex is unset yet")
+        return poseidonHash([this.nullifier, 1, this.leafIndex])
     }
 }
 
@@ -65,6 +68,7 @@ describe("ETHTornado", function () {
         const events = await tornado.queryFilter(tornado.filters.Deposit(), receipt.blockHash)
         assert.equal(events[0].args.commitment, deposit.commitment)
         console.log("Deposit gas cost", receipt.gasUsed.toNumber())
+        deposit.leafIndex = events[0].args.leafIndex
 
         const tree = new MerkleTree(HEIGHT, "test", new PoseidonHasher())
         assert.equal(await tree.root(), await tornado.roots(0))
@@ -78,7 +82,7 @@ describe("ETHTornado", function () {
         const fee = 0
         const refund = 0
 
-        const { root, path_elements, path_index } = await tree.path(0)
+        const { root, path_elements, path_index } = await tree.path(deposit.leafIndex)
 
         const witness = {
             // Public
@@ -90,7 +94,7 @@ describe("ETHTornado", function () {
             refund,
             // Private
             nullifier: BigNumber.from(deposit.nullifier).toBigInt(),
-            secret: BigNumber.from(deposit.secret).toBigInt(),
+            leafIndex: deposit.leafIndex,
             pathElements: path_elements,
             pathIndices: path_index,
         }

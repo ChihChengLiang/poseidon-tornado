@@ -1,7 +1,6 @@
 include "../node_modules/circomlib/circuits/poseidon.circom";
 include "merkleTree.circom";
 
-// Verifies that commitment that corresponds to given secret and nullifier is included in the merkle tree of deposits
 template Withdraw(levels) {
     signal input root;
     signal input nullifierHash;
@@ -10,17 +9,19 @@ template Withdraw(levels) {
     signal input fee;      // not taking part in any computations
     signal input refund;   // not taking part in any computations
     signal private input nullifier;
-    signal private input secret;
+    signal private input leafIndex;
     signal private input pathElements[levels];
     signal private input pathIndices[levels];
 
-    component nullifierHasher = Poseidon(1);
+    component nullifierHasher = Poseidon(3);
     nullifierHasher.inputs[0] <== nullifier;
+    nullifierHasher.inputs[1] <== 1;
+    nullifierHasher.inputs[2] <== leafIndex;
     nullifierHasher.out === nullifierHash;
 
     component commitmentHasher = Poseidon(2);
     commitmentHasher.inputs[0] <== nullifier;
-    commitmentHasher.inputs[1] <== secret;
+    commitmentHasher.inputs[1] <== 0;
 
     component tree = MerkleTreeChecker(levels);
     tree.leaf <== commitmentHasher.out;
