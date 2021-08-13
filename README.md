@@ -1,6 +1,6 @@
 # Tornado Cash but with Poseidon Hash
 
-We copy and modify the Tornado Cash and implement the optimization suggestions in the a Tornado [audit report](https://tornado.cash/audits/TornadoCash_cryptographic_review_ABDK.pdf).
+We copy and modify the [Tornado Cash](https://github.com/tornadocash/tornado-core) and implement the optimization suggestions in the a Tornado [audit report](https://tornado.cash/audits/TornadoCash_cryptographic_review_ABDK.pdf).
 
 Specifically we
 
