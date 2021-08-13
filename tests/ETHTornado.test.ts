@@ -62,8 +62,9 @@ describe("ETHTornado", function () {
         tornado = await new ETHTornado__factory(signer).deploy(verifier.address, ETH_AMOUNT, HEIGHT, poseidon.address);
     })
     it("deposit and withdraw", async function () {
+        const [userOldSigner, relayerSigner, userNewSigner] = await ethers.getSigners();
         const deposit = Deposit.new()
-        const tx = await tornado.deposit(deposit.commitment, { value: ETH_AMOUNT })
+        const tx = await tornado.connect(userOldSigner).deposit(deposit.commitment, { value: ETH_AMOUNT })
         const receipt = await tx.wait()
         const events = await tornado.queryFilter(tornado.filters.Deposit(), receipt.blockHash)
         assert.equal(events[0].args.commitment, deposit.commitment)
@@ -77,8 +78,8 @@ describe("ETHTornado", function () {
         assert.equal(await tree.root(), await tornado.roots(1))
 
         const nullifierHash = deposit.nullifierHash
-        const recipient = ethers.utils.hexlify(ethers.utils.randomBytes(20))
-        const relayer = ethers.utils.hexlify(ethers.utils.randomBytes(20))
+        const recipient = await userNewSigner.getAddress()
+        const relayer = await relayerSigner.getAddress()
         const fee = 0
         const refund = 0
 
@@ -108,7 +109,7 @@ describe("ETHTornado", function () {
         const b: [[BigNumberish, BigNumberish], [BigNumberish, BigNumberish]] = [[proof.pi_b[0][1], proof.pi_b[0][0]], [proof.pi_b[1][1], proof.pi_b[1][0]]]
         const c: [BigNumberish, BigNumberish] = [proof.pi_c[0], proof.pi_c[1]]
 
-        const txWithdraw = await tornado.withdraw({ a, b, c }, root, nullifierHash, recipient, relayer, fee, refund)
+        const txWithdraw = await tornado.connect(relayerSigner).withdraw({ a, b, c }, root, nullifierHash, recipient, relayer, fee, refund)
         const receiptWithdraw = await txWithdraw.wait()
         console.log("Withdraw gas cost", receiptWithdraw.gasUsed.toNumber())
     })
