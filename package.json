@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "build": "npm run compile:circuits && npm run setup && npm run compile",
     "compile": "hardhat compile && typechain --out-dir types --target ethers-v5 './artifacts/contracts/**/!(*.dbg).json'",
     "compile:circuits": "circom circuits/withdraw.circom -r build/withdraw.r1cs -w build/withdraw.wasm",
     "setup": "sh quickSetup.sh",
