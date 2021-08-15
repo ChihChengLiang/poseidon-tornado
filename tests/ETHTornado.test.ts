@@ -143,5 +143,5 @@ describe("ETHTornado", function () {
             );
         const receiptWithdraw = await txWithdraw.wait();
         console.log("Withdraw gas cost", receiptWithdraw.gasUsed.toNumber());
-    });
+    }).timeout(500000);
 });
