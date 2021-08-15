@@ -10,7 +10,8 @@
     "setup": "sh quickSetup.sh",
     "info": "snarkjs info -r build/withdraw.r1cs",
     "test": "hardhat test tests/*",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "lint": "prettier --check ."
   },
   "keywords": [],
   "author": "",
