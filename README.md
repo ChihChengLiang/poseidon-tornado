@@ -1,5 +1,9 @@
 # Tornado Cash but with Poseidon Hash
 
+[![Node.js CI](https://github.com/ChihChengLiang/poseidon-tornado/actions/workflows/node.js.yml/badge.svg)](https://github.com/ChihChengLiang/poseidon-tornado/actions/workflows/node.js.yml)
+
+WARNING: This project is unaudited, please don't use in the production.
+
 We copy and modify the [Tornado Cash](https://github.com/tornadocash/tornado-core) and implement the optimization suggestions in the a Tornado [audit report](https://tornado.cash/audits/TornadoCash_cryptographic_review_ABDK.pdf).
 
 Specifically we
