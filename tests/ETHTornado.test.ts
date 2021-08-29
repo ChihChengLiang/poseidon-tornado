@@ -112,7 +112,6 @@ describe("ETHTornado", function () {
             refund,
             // Private
             nullifier: BigNumber.from(deposit.nullifier).toBigInt(),
-            leafIndex: deposit.leafIndex,
             pathElements: path_elements,
             pathIndices: path_index,
         };
