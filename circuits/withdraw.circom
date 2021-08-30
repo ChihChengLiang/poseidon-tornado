@@ -1,4 +1,5 @@
 include "../node_modules/circomlib/circuits/poseidon.circom";
+include "../node_modules/circomlib/circuits/bitify.circom";
 include "merkleTree.circom";
 
 template Withdraw(levels) {
@@ -9,14 +10,18 @@ template Withdraw(levels) {
     signal input fee;      // not taking part in any computations
     signal input refund;   // not taking part in any computations
     signal private input nullifier;
-    signal private input leafIndex;
     signal private input pathElements[levels];
     signal private input pathIndices[levels];
+
+    component leafIndexNum = Bits2Num(levels);
+    for (var i = 0; i < levels; i++) {
+        leafIndexNum.in[i] <== pathIndices[i];
+    }
 
     component nullifierHasher = Poseidon(3);
     nullifierHasher.inputs[0] <== nullifier;
     nullifierHasher.inputs[1] <== 1;
-    nullifierHasher.inputs[2] <== leafIndex;
+    nullifierHasher.inputs[2] <== leafIndexNum.out;
     nullifierHasher.out === nullifierHash;
 
     component commitmentHasher = Poseidon(2);
