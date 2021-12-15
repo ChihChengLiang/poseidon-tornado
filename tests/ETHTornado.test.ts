@@ -57,6 +57,23 @@ function getPoseidonFactory(nInputs: number) {
     return new ContractFactory(abi, bytecode);
 }
 
+interface Proof {
+    a: [BigNumberish, BigNumberish];
+    b: [[BigNumberish, BigNumberish], [BigNumberish, BigNumberish]];
+    c: [BigNumberish, BigNumberish];
+}
+
+function parseProof(proof: any): Proof {
+    return {
+        a: [proof.pi_a[0], proof.pi_a[1]],
+        b: [
+            [proof.pi_b[0][1], proof.pi_b[0][0]],
+            [proof.pi_b[1][1], proof.pi_b[1][0]],
+        ],
+        c: [proof.pi_c[0], proof.pi_c[1]],
+    };
+}
+
 describe("ETHTornado", function () {
     let tornado: ETHTornado;
     beforeEach(async function () {
@@ -120,19 +137,12 @@ describe("ETHTornado", function () {
         const zkeyPath = path.join(__dirname, "../build/circuit_final.zkey");
 
         const { proof } = await groth16.fullProve(witness, wasmPath, zkeyPath);
-
-        const a: [BigNumberish, BigNumberish] = [proof.pi_a[0], proof.pi_a[1]];
-        const b: [[BigNumberish, BigNumberish], [BigNumberish, BigNumberish]] =
-            [
-                [proof.pi_b[0][1], proof.pi_b[0][0]],
-                [proof.pi_b[1][1], proof.pi_b[1][0]],
-            ];
-        const c: [BigNumberish, BigNumberish] = [proof.pi_c[0], proof.pi_c[1]];
+        const solProof = parseProof(proof);
 
         const txWithdraw = await tornado
             .connect(relayerSigner)
             .withdraw(
-                { a, b, c },
+                solProof,
                 root,
                 nullifierHash,
                 recipient,
