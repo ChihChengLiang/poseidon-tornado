@@ -1,4 +1,4 @@
-import { assert } from "chai";
+import { assert, expect } from "chai";
 import { ETHTornado__factory, Verifier__factory, ETHTornado } from "../types/";
 
 import { ethers } from "hardhat";
@@ -152,5 +152,89 @@ describe("ETHTornado", function () {
             );
         const receiptWithdraw = await txWithdraw.wait();
         console.log("Withdraw gas cost", receiptWithdraw.gasUsed.toNumber());
+    }).timeout(500000);
+
+    it("prevent a user withdrawing twice", async function () {
+        const [userOldSigner, relayerSigner, userNewSigner] =
+            await ethers.getSigners();
+        const deposit = Deposit.new();
+        const tx = await tornado
+            .connect(userOldSigner)
+            .deposit(deposit.commitment, { value: ETH_AMOUNT });
+        const receipt = await tx.wait();
+        const events = await tornado.queryFilter(
+            tornado.filters.Deposit(),
+            receipt.blockHash
+        );
+        deposit.leafIndex = events[0].args.leafIndex;
+
+        const tree = new MerkleTree(HEIGHT, "test", new PoseidonHasher());
+        await tree.insert(deposit.commitment);
+
+        const nullifierHash = deposit.nullifierHash;
+        const recipient = await userNewSigner.getAddress();
+        const relayer = await relayerSigner.getAddress();
+        const fee = 0;
+        const refund = 0;
+
+        const { root, path_elements, path_index } = await tree.path(
+            deposit.leafIndex
+        );
+
+        const witness = {
+            // Public
+            root,
+            nullifierHash,
+            recipient,
+            relayer,
+            fee,
+            refund,
+            // Private
+            nullifier: BigNumber.from(deposit.nullifier).toBigInt(),
+            pathElements: path_elements,
+            pathIndices: path_index,
+        };
+
+        const wasmPath = path.join(__dirname, "../build/withdraw.wasm");
+        const zkeyPath = path.join(__dirname, "../build/circuit_final.zkey");
+
+        const { proof } = await groth16.fullProve(witness, wasmPath, zkeyPath);
+        const solProof = parseProof(proof);
+
+        // First withdraw
+        await tornado
+            .connect(relayerSigner)
+            .withdraw(
+                solProof,
+                root,
+                nullifierHash,
+                recipient,
+                relayer,
+                fee,
+                refund
+            );
+
+        // Second withdraw
+        await tornado
+            .connect(relayerSigner)
+            .withdraw(
+                solProof,
+                root,
+                nullifierHash,
+                recipient,
+                relayer,
+                fee,
+                refund
+            )
+            .then(
+                () => {
+                    assert.fail("Expect tx to fail");
+                },
+                (error) => {
+                    expect(error.message).to.have.string(
+                        "The note has been already spent"
+                    );
+                }
+            );
     }).timeout(500000);
 });
