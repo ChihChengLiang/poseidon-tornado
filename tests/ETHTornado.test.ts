@@ -209,4 +209,72 @@ describe("ETHTornado", function () {
                 }
             );
     }).timeout(500000);
+    it("prevent a user withdrawing from a non-existent root", async function () {
+        const [honestUser, relayerSigner, attacker] = await ethers.getSigners();
+
+        // An honest user makes a deposit
+        // the point here is just to top up some balance in the tornado contract
+        const depositHonest = Deposit.new();
+        const tx = await tornado
+            .connect(honestUser)
+            .deposit(depositHonest.commitment, { value: ETH_AMOUNT });
+        const receipt = await tx.wait();
+        const events = await tornado.queryFilter(
+            tornado.filters.Deposit(),
+            receipt.blockHash
+        );
+        depositHonest.leafIndex = events[0].args.leafIndex;
+
+        // The attacker never made a deposit on chain
+        const depositAttacker = Deposit.new();
+        depositAttacker.leafIndex = 1;
+
+        // The attacker constructed a tree which includes their deposit
+        const tree = new MerkleTree(HEIGHT, "test", new PoseidonHasher());
+        await tree.insert(depositHonest.commitment);
+        await tree.insert(depositAttacker.commitment);
+
+        const nullifierHash = depositAttacker.nullifierHash;
+        const recipient = await attacker.getAddress();
+        const relayer = await relayerSigner.getAddress();
+        const fee = 0;
+
+        // Attacker construct the proof
+        const { root, path_elements, path_index } = await tree.path(
+            depositAttacker.leafIndex
+        );
+
+        const witness = {
+            // Public
+            root,
+            nullifierHash,
+            recipient,
+            relayer,
+            fee,
+            // Private
+            nullifier: BigNumber.from(depositAttacker.nullifier).toBigInt(),
+            pathElements: path_elements,
+            pathIndices: path_index,
+        };
+
+        const wasmPath = path.join(__dirname, "../build/withdraw.wasm");
+        const zkeyPath = path.join(__dirname, "../build/circuit_final.zkey");
+
+        const { proof } = await groth16.fullProve(witness, wasmPath, zkeyPath);
+        const solProof = parseProof(proof);
+
+        await tornado
+            .connect(relayerSigner)
+            .withdraw(solProof, root, nullifierHash, recipient, relayer, fee)
+            .then(
+                () => {
+                    assert.fail("Expect tx to fail");
+                },
+                (error) => {
+                    expect(error.message).to.have.string(
+                        "Cannot find your merkle root"
+                    );
+                }
+            );
+    }).timeout(500000);
 });
