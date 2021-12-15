@@ -114,11 +114,4 @@ contract MerkleTreeWithHistory {
         } while (i != currentRootIndex);
         return false;
     }
-
-    /**
-    @dev Returns the last root
-  */
-    function getLastRoot() public view returns (bytes32) {
-        return roots[currentRootIndex];
-    }
 }

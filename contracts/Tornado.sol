@@ -86,11 +86,8 @@ abstract contract Tornado is MerkleTreeWithHistory, ReentrancyGuard {
         uint256 _fee
     ) external payable nonReentrant {
         require(_fee <= denomination, "Fee exceeds transfer value");
-        require(
-            !nullifierHashes[_nullifierHash],
-            "The note has been already spent"
-        );
-        require(isKnownRoot(_root), "Cannot find your merkle root"); // Make sure to use a recent one
+        // ### Somethings are missing here
+        // Hint: 2 requires
         require(
             verifier.verifyProof(
                 _proof.a,
@@ -107,7 +104,8 @@ abstract contract Tornado is MerkleTreeWithHistory, ReentrancyGuard {
             "Invalid withdraw proof"
         );
 
-        nullifierHashes[_nullifierHash] = true;
+        // ### Somethings are missing here
+        // Hint: it's 1 line and related to the require.
         _processWithdraw(_recipient, _relayer, _fee);
         emit Withdrawal(_recipient, _nullifierHash, _relayer, _fee);
     }
@@ -121,18 +119,5 @@ abstract contract Tornado is MerkleTreeWithHistory, ReentrancyGuard {
 
     function isSpent(bytes32 _nullifierHash) public view returns (bool) {
         return nullifierHashes[_nullifierHash];
-    }
-
-    function isSpentArray(bytes32[] calldata _nullifierHashes)
-        external
-        view
-        returns (bool[] memory spent)
-    {
-        spent = new bool[](_nullifierHashes.length);
-        for (uint256 i = 0; i < _nullifierHashes.length; i++) {
-            if (isSpent(_nullifierHashes[i])) {
-                spent[i] = true;
-            }
-        }
     }
 }
