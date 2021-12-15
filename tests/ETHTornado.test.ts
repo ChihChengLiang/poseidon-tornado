@@ -1,5 +1,9 @@
 import { assert } from "chai";
-import { ETHTornado__factory, Verifier__factory, ETHTornado } from "../types/";
+import {
+    ETHTornado__factory,
+    PlonkVerifier__factory,
+    ETHTornado,
+} from "../types/";
 
 import { ethers } from "hardhat";
 import { ContractFactory, BigNumber, BigNumberish } from "ethers";
@@ -9,7 +13,7 @@ import { createCode, generateABI } from "circomlib/src/poseidon_gencontract";
 import poseidon from "circomlib/src/poseidon";
 import { MerkleTree, Hasher } from "../src/merkleTree";
 // @ts-ignore
-import { groth16 } from "snarkjs";
+import { plonk } from "snarkjs";
 import path from "path";
 
 const ETH_AMOUNT = ethers.utils.parseEther("1");
@@ -22,6 +26,13 @@ function poseidonHash(inputs: BigNumberish[]): string {
         32
     );
     return bytes32;
+}
+
+async function getSerializedProof(proof: any): Promise<string> {
+    const dummyPublicInput: string[] = [];
+    const string = await plonk.exportSolidityCallData(proof, dummyPublicInput);
+    const proofHexPart = string.split(",")[0];
+    return proofHexPart;
 }
 
 class PoseidonHasher implements Hasher {
@@ -61,10 +72,8 @@ describe("ETHTornado", function () {
     let tornado: ETHTornado;
     beforeEach(async function () {
         const [signer] = await ethers.getSigners();
-        const verifier = await new Verifier__factory(signer).deploy();
         const poseidon = await getPoseidonFactory(2).connect(signer).deploy();
         tornado = await new ETHTornado__factory(signer).deploy(
-            verifier.address,
             ETH_AMOUNT,
             HEIGHT,
             poseidon.address
@@ -119,26 +128,19 @@ describe("ETHTornado", function () {
         const wasmPath = path.join(__dirname, "../build/withdraw.wasm");
         const zkeyPath = path.join(__dirname, "../build/circuit_final.zkey");
 
-        const { proof } = await groth16.fullProve(witness, wasmPath, zkeyPath);
-
-        const a: [BigNumberish, BigNumberish] = [proof.pi_a[0], proof.pi_a[1]];
-        const b: [[BigNumberish, BigNumberish], [BigNumberish, BigNumberish]] =
-            [
-                [proof.pi_b[0][1], proof.pi_b[0][0]],
-                [proof.pi_b[1][1], proof.pi_b[1][0]],
-            ];
-        const c: [BigNumberish, BigNumberish] = [proof.pi_c[0], proof.pi_c[1]];
+        const { proof } = await plonk.fullProve(witness, wasmPath, zkeyPath);
+        const proofHex = await getSerializedProof(proof);
 
         const txWithdraw = await tornado
             .connect(relayerSigner)
             .withdraw(
-                { a, b, c },
                 root,
                 nullifierHash,
                 recipient,
                 relayer,
                 fee,
-                refund
+                refund,
+                proofHex
             );
         const receiptWithdraw = await txWithdraw.wait();
         console.log("Withdraw gas cost", receiptWithdraw.gasUsed.toNumber());
