@@ -17,7 +17,7 @@ interface IVerifier {
         uint256[2] calldata a,
         uint256[2][2] calldata b,
         uint256[2] calldata c,
-        uint256[6] calldata input
+        uint256[5] calldata input
     ) external view returns (bool);
 }
 
@@ -83,8 +83,7 @@ abstract contract Tornado is MerkleTreeWithHistory, ReentrancyGuard {
         bytes32 _nullifierHash,
         address payable _recipient,
         address payable _relayer,
-        uint256 _fee,
-        uint256 _refund
+        uint256 _fee
     ) external payable nonReentrant {
         require(_fee <= denomination, "Fee exceeds transfer value");
         require(
@@ -102,15 +101,14 @@ abstract contract Tornado is MerkleTreeWithHistory, ReentrancyGuard {
                     uint256(_nullifierHash),
                     uint256(_recipient),
                     uint256(_relayer),
-                    _fee,
-                    _refund
+                    _fee
                 ]
             ),
             "Invalid withdraw proof"
         );
 
         nullifierHashes[_nullifierHash] = true;
-        _processWithdraw(_recipient, _relayer, _fee, _refund);
+        _processWithdraw(_recipient, _relayer, _fee);
         emit Withdrawal(_recipient, _nullifierHash, _relayer, _fee);
     }
 
@@ -118,8 +116,7 @@ abstract contract Tornado is MerkleTreeWithHistory, ReentrancyGuard {
     function _processWithdraw(
         address payable _recipient,
         address payable _relayer,
-        uint256 _fee,
-        uint256 _refund
+        uint256 _fee
     ) internal virtual;
 
     function isSpent(bytes32 _nullifierHash) public view returns (bool) {
