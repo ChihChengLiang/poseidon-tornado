@@ -26,8 +26,6 @@ abstract contract Tornado is MerkleTreeWithHistory, ReentrancyGuard {
     IVerifier public immutable verifier;
 
     mapping(bytes32 => bool) public nullifierHashes;
-    // we store all commitments just to prevent accidental deposits with the same commitment
-    mapping(bytes32 => bool) public commitments;
 
     event Deposit(
         bytes32 indexed commitment,
@@ -62,10 +60,7 @@ abstract contract Tornado is MerkleTreeWithHistory, ReentrancyGuard {
     @param _commitment the note commitment, which is PedersenHash(nullifier + secret)
   */
     function deposit(bytes32 _commitment) external payable nonReentrant {
-        require(!commitments[_commitment], "The commitment has been submitted");
-
         uint32 insertedIndex = _insert(_commitment);
-        commitments[_commitment] = true;
         _processDeposit();
 
         emit Deposit(_commitment, insertedIndex, block.timestamp);
