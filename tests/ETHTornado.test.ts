@@ -113,7 +113,6 @@ describe("ETHTornado", function () {
         const recipient = await userNewSigner.getAddress();
         const relayer = await relayerSigner.getAddress();
         const fee = 0;
-        const refund = 0;
 
         const { root, path_elements, path_index } = await tree.path(
             deposit.leafIndex
@@ -126,7 +125,6 @@ describe("ETHTornado", function () {
             recipient,
             relayer,
             fee,
-            refund,
             // Private
             nullifier: BigNumber.from(deposit.nullifier).toBigInt(),
             pathElements: path_elements,
@@ -141,15 +139,7 @@ describe("ETHTornado", function () {
 
         const txWithdraw = await tornado
             .connect(relayerSigner)
-            .withdraw(
-                solProof,
-                root,
-                nullifierHash,
-                recipient,
-                relayer,
-                fee,
-                refund
-            );
+            .withdraw(solProof, root, nullifierHash, recipient, relayer, fee);
         const receiptWithdraw = await txWithdraw.wait();
         console.log("Withdraw gas cost", receiptWithdraw.gasUsed.toNumber());
     }).timeout(500000);
@@ -175,7 +165,6 @@ describe("ETHTornado", function () {
         const recipient = await userNewSigner.getAddress();
         const relayer = await relayerSigner.getAddress();
         const fee = 0;
-        const refund = 0;
 
         const { root, path_elements, path_index } = await tree.path(
             deposit.leafIndex
@@ -188,7 +177,6 @@ describe("ETHTornado", function () {
             recipient,
             relayer,
             fee,
-            refund,
             // Private
             nullifier: BigNumber.from(deposit.nullifier).toBigInt(),
             pathElements: path_elements,
@@ -204,28 +192,12 @@ describe("ETHTornado", function () {
         // First withdraw
         await tornado
             .connect(relayerSigner)
-            .withdraw(
-                solProof,
-                root,
-                nullifierHash,
-                recipient,
-                relayer,
-                fee,
-                refund
-            );
+            .withdraw(solProof, root, nullifierHash, recipient, relayer, fee);
 
         // Second withdraw
         await tornado
             .connect(relayerSigner)
-            .withdraw(
-                solProof,
-                root,
-                nullifierHash,
-                recipient,
-                relayer,
-                fee,
-                refund
-            )
+            .withdraw(solProof, root, nullifierHash, recipient, relayer, fee)
             .then(
                 () => {
                     assert.fail("Expect tx to fail");
