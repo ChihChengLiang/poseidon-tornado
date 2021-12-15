@@ -1,11 +1,10 @@
+# Use existing public phase 1 setup
+curl -o build/phase1_final.ptau https://hermez.s3-eu-west-1.amazonaws.com/powersOfTau28_hez_final_14.ptau
 
-# Lame untrusted setup
-npx snarkjs powersoftau new bn128 14 build/pot12_0000.ptau -v
-npx snarkjs powersoftau contribute build/pot12_0000.ptau build/pot12_0001.ptau --name="First contribution" -v -e="some random text"
-npx snarkjs powersoftau prepare phase2 build/pot12_0001.ptau build/pot12_final.ptau -v
+# Untrusted phase 2
+npx snarkjs powersoftau prepare phase2 build/phase1_final.ptau build/phase2_final.ptau -v
 
-
-npx snarkjs zkey new build/withdraw.r1cs build/pot12_final.ptau build/circuit_final.zkey
+npx snarkjs zkey new build/withdraw.r1cs build/phase2_final.ptau build/circuit_final.zkey
 
 npx snarkjs zkey export verificationkey build/circuit_final.zkey build/verification_key.json
 
