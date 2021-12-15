@@ -7,11 +7,10 @@ import "./Tornado.sol";
 
 contract ETHTornado is Tornado {
     constructor(
-        IVerifier _verifier,
         uint256 _denomination,
         uint32 _merkleTreeHeight,
         address _hasher
-    ) Tornado(_verifier, _denomination, _merkleTreeHeight, _hasher) {}
+    ) Tornado(_denomination, _merkleTreeHeight, _hasher) {}
 
     function _processDeposit() internal override {
         require(
@@ -36,10 +35,10 @@ contract ETHTornado is Tornado {
             "Refund value is supposed to be zero for ETH instance"
         );
 
-        (bool success, ) = _recipient.call{value: (denomination - _fee)}("");
+        (bool success, ) = _recipient.call{ value: (denomination - _fee) }("");
         require(success, "payment to _recipient did not go thru");
         if (_fee > 0) {
-            (success, ) = _relayer.call{value: _fee}("");
+            (success, ) = _relayer.call{ value: _fee }("");
             require(success, "payment to _relayer did not go thru");
         }
     }

@@ -5,25 +5,14 @@ pragma experimental ABIEncoderV2;
 
 import "./MerkleTreeWithHistory.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "./Verifier.sol";
 
-struct Proof {
-    uint256[2] a;
-    uint256[2][2] b;
-    uint256[2] c;
-}
-
-interface IVerifier {
-    function verifyProof(
-        uint256[2] calldata a,
-        uint256[2][2] calldata b,
-        uint256[2] calldata c,
-        uint256[6] calldata input
-    ) external view returns (bool);
-}
-
-abstract contract Tornado is MerkleTreeWithHistory, ReentrancyGuard {
+abstract contract Tornado is
+    MerkleTreeWithHistory,
+    ReentrancyGuard,
+    PlonkVerifier
+{
     uint256 public immutable denomination;
-    IVerifier public immutable verifier;
 
     mapping(bytes32 => bool) public nullifierHashes;
     // we store all commitments just to prevent accidental deposits with the same commitment
@@ -42,18 +31,16 @@ abstract contract Tornado is MerkleTreeWithHistory, ReentrancyGuard {
     );
 
     /**
-    @param _verifier the address of SNARK verifier for this contract
     @param _denomination transfer amount for each deposit
     @param _merkleTreeHeight the height of deposits' Merkle Tree
     */
     constructor(
-        IVerifier _verifier,
         uint256 _denomination,
         uint32 _merkleTreeHeight,
         address _hasher
     ) MerkleTreeWithHistory(_merkleTreeHeight, _hasher) {
         require(_denomination > 0, "denomination should be greater than 0");
-        verifier = _verifier;
+
         denomination = _denomination;
     }
 
@@ -83,13 +70,13 @@ abstract contract Tornado is MerkleTreeWithHistory, ReentrancyGuard {
       - optional fee that goes to the transaction sender (usually a relay)
     */
     function withdraw(
-        Proof calldata _proof,
         bytes32 _root,
         bytes32 _nullifierHash,
         address payable _recipient,
         address payable _relayer,
         uint256 _fee,
-        uint256 _refund
+        uint256 _refund,
+        bytes calldata _proof
     ) external payable nonReentrant {
         require(_fee <= denomination, "Fee exceeds transfer value");
         require(
@@ -97,22 +84,14 @@ abstract contract Tornado is MerkleTreeWithHistory, ReentrancyGuard {
             "The note has been already spent"
         );
         require(isKnownRoot(_root), "Cannot find your merkle root"); // Make sure to use a recent one
-        require(
-            verifier.verifyProof(
-                _proof.a,
-                _proof.b,
-                _proof.c,
-                [
-                    uint256(_root),
-                    uint256(_nullifierHash),
-                    uint256(_recipient),
-                    uint256(_relayer),
-                    _fee,
-                    _refund
-                ]
-            ),
-            "Invalid withdraw proof"
-        );
+        uint256[] memory pubSignals = new uint256[](6);
+        pubSignals[0] = uint256(_root);
+        pubSignals[1] = uint256(_nullifierHash);
+        pubSignals[2] = uint256(_recipient);
+        pubSignals[3] = uint256(_relayer);
+        pubSignals[4] = _fee;
+        pubSignals[5] = _refund;
+        require(verifyProof(_proof, pubSignals), "Invalid withdraw proof");
 
         nullifierHashes[_nullifierHash] = true;
         _processWithdraw(_recipient, _relayer, _fee, _refund);
