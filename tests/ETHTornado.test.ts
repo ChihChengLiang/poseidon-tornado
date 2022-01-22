@@ -4,7 +4,7 @@ import { ETHTornado__factory, Verifier__factory, ETHTornado } from "../types/";
 import { ethers } from "hardhat";
 import { ContractFactory, BigNumber, BigNumberish } from "ethers";
 // @ts-ignore
-import { createCode, generateABI } from "circomlib/src/poseidon_gencontract";
+import { createCode, generateABI } from "circomlibjs/src/poseidon_gencontract";
 // @ts-ignore
 import poseidon from "circomlib/src/poseidon";
 import { MerkleTree, Hasher } from "../src/merkleTree";

@@ -1,3 +1,5 @@
+pragma circom 2.0.0;
+
 include "../node_modules/circomlib/circuits/poseidon.circom";
 include "../node_modules/circomlib/circuits/bitify.circom";
 include "merkleTree.circom";
@@ -8,9 +10,9 @@ template Withdraw(levels) {
     signal input recipient; // not taking part in any computations
     signal input relayer;  // not taking part in any computations
     signal input fee;      // not taking part in any computations
-    signal private input nullifier;
-    signal private input pathElements[levels];
-    signal private input pathIndices[levels];
+    signal input nullifier;
+    signal input pathElements[levels];
+    signal input pathIndices[levels];
 
     component leafIndexNum = Bits2Num(levels);
     for (var i = 0; i < levels; i++) {
@@ -46,4 +48,4 @@ template Withdraw(levels) {
     relayerSquare <== relayer * relayer;
 }
 
-component main = Withdraw(20);
+component main {public [root,nullifierHash,recipient,relayer,fee,nullifier]} = Withdraw(20);
