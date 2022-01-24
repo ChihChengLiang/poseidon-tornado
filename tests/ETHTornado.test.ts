@@ -4,9 +4,8 @@ import { ETHTornado__factory, Verifier__factory, ETHTornado } from "../types/";
 import { ethers } from "hardhat";
 import { ContractFactory, BigNumber, BigNumberish } from "ethers";
 // @ts-ignore
-import { createCode, generateABI } from "circomlibjs/src/poseidon_gencontract";
+import { poseidonContract, buildPoseidon } from "circomlibjs";
 // @ts-ignore
-import poseidon from "circomlib/src/poseidon";
 import { MerkleTree, Hasher } from "../src/merkleTree";
 // @ts-ignore
 import { groth16 } from "snarkjs";
@@ -15,7 +14,7 @@ import path from "path";
 const ETH_AMOUNT = ethers.utils.parseEther("1");
 const HEIGHT = 20;
 
-function poseidonHash(inputs: BigNumberish[]): string {
+function poseidonHash(poseidon: Function, inputs: BigNumberish[]): string {
     const hash = poseidon(inputs.map((x) => BigNumber.from(x).toBigInt()));
     const bytes32 = ethers.utils.hexZeroPad(
         BigNumber.from(hash).toHexString(),
@@ -25,34 +24,45 @@ function poseidonHash(inputs: BigNumberish[]): string {
 }
 
 class PoseidonHasher implements Hasher {
+    poseidon: Function;
+
+    constructor(poseidon: Function) {
+        this.poseidon = poseidon;
+    }
+
     hash(left: string, right: string) {
-        return poseidonHash([left, right]);
+        return poseidonHash(this.poseidon, [left, right]);
     }
 }
 
 class Deposit {
+//    const poseidon: Function;
+
     private constructor(
         public readonly nullifier: Uint8Array,
+        public poseidon: Function,
         public leafIndex?: number
-    ) {}
-    static new() {
+    ) {
+        this.poseidon = poseidon;
+    }
+    static new(poseidon: Function) {
         const nullifier = ethers.utils.randomBytes(15);
-        return new this(nullifier);
+        return new this(nullifier, poseidon);
     }
     get commitment() {
-        return poseidonHash([this.nullifier, 0]);
+        return poseidonHash(this.poseidon, [this.nullifier, 0]);
     }
 
     get nullifierHash() {
         if (!this.leafIndex && this.leafIndex !== 0)
             throw Error("leafIndex is unset yet");
-        return poseidonHash([this.nullifier, 1, this.leafIndex]);
+        return poseidonHash(this.poseidon, [this.nullifier, 1, this.leafIndex]);
     }
 }
 
 function getPoseidonFactory(nInputs: number) {
-    const bytecode = createCode(nInputs);
-    const abiJson = generateABI(nInputs);
+    const bytecode = poseidonContract.createCode(nInputs);
+    const abiJson = poseidonContract.generateABI(nInputs);
     const abi = new ethers.utils.Interface(abiJson);
     return new ContractFactory(abi, bytecode);
 }
@@ -76,21 +86,28 @@ function parseProof(proof: any): Proof {
 
 describe("ETHTornado", function () {
     let tornado: ETHTornado;
+    let poseidon: Function;
+
+    before(async () => {
+        poseidon = await buildPoseidon();
+    });
+
     beforeEach(async function () {
+        //poseidonHashFn = await buildPoseidon();
         const [signer] = await ethers.getSigners();
         const verifier = await new Verifier__factory(signer).deploy();
-        const poseidon = await getPoseidonFactory(2).connect(signer).deploy();
+        const poseidonContract = await getPoseidonFactory(2).connect(signer).deploy();
         tornado = await new ETHTornado__factory(signer).deploy(
             verifier.address,
             ETH_AMOUNT,
             HEIGHT,
-            poseidon.address
+            poseidonContract.address
         );
     });
     it("deposit and withdraw", async function () {
         const [userOldSigner, relayerSigner, userNewSigner] =
             await ethers.getSigners();
-        const deposit = Deposit.new();
+        const deposit = Deposit.new(poseidon);
         const tx = await tornado
             .connect(userOldSigner)
             .deposit(deposit.commitment, { value: ETH_AMOUNT });
@@ -99,11 +116,13 @@ describe("ETHTornado", function () {
             tornado.filters.Deposit(),
             receipt.blockHash
         );
+        // XXX Tests fail here
+        // AssertionError: expected '0xf3c07b10bdcef09c269e633587caa3885fb204ddbfee021fdb8810398a5b2707' to equal '0x2b0f6fc0179fa65b6f73627c0e1e84c7374d2eaec44c9a48f2571393ea77bcbb'
         assert.equal(events[0].args.commitment, deposit.commitment);
         console.log("Deposit gas cost", receipt.gasUsed.toNumber());
         deposit.leafIndex = events[0].args.leafIndex;
 
-        const tree = new MerkleTree(HEIGHT, "test", new PoseidonHasher());
+        const tree = new MerkleTree(HEIGHT, "test", new PoseidonHasher(poseidon));
         assert.equal(await tree.root(), await tornado.roots(0));
         await tree.insert(deposit.commitment);
         assert.equal(tree.totalElements, await tornado.nextIndex());
@@ -147,7 +166,7 @@ describe("ETHTornado", function () {
     it("prevent a user withdrawing twice", async function () {
         const [userOldSigner, relayerSigner, userNewSigner] =
             await ethers.getSigners();
-        const deposit = Deposit.new();
+        const deposit = Deposit.new(poseidon);
         const tx = await tornado
             .connect(userOldSigner)
             .deposit(deposit.commitment, { value: ETH_AMOUNT });
@@ -158,7 +177,7 @@ describe("ETHTornado", function () {
         );
         deposit.leafIndex = events[0].args.leafIndex;
 
-        const tree = new MerkleTree(HEIGHT, "test", new PoseidonHasher());
+        const tree = new MerkleTree(HEIGHT, "test", new PoseidonHasher(poseidon));
         await tree.insert(deposit.commitment);
 
         const nullifierHash = deposit.nullifierHash;
@@ -214,7 +233,7 @@ describe("ETHTornado", function () {
 
         // An honest user makes a deposit
         // the point here is just to top up some balance in the tornado contract
-        const depositHonest = Deposit.new();
+        const depositHonest = Deposit.new(poseidon);
         const tx = await tornado
             .connect(honestUser)
             .deposit(depositHonest.commitment, { value: ETH_AMOUNT });
@@ -226,11 +245,11 @@ describe("ETHTornado", function () {
         depositHonest.leafIndex = events[0].args.leafIndex;
 
         // The attacker never made a deposit on chain
-        const depositAttacker = Deposit.new();
+        const depositAttacker = Deposit.new(poseidon);
         depositAttacker.leafIndex = 1;
 
         // The attacker constructed a tree which includes their deposit
-        const tree = new MerkleTree(HEIGHT, "test", new PoseidonHasher());
+        const tree = new MerkleTree(HEIGHT, "test", new PoseidonHasher(poseidon));
         await tree.insert(depositHonest.commitment);
         await tree.insert(depositAttacker.commitment);
 
