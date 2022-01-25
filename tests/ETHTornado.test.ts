@@ -2,7 +2,7 @@ import { assert, expect } from "chai";
 import { ETHTornado__factory, Verifier__factory, ETHTornado } from "../types/";
 
 import { ethers } from "hardhat";
-import { ContractFactory, BigNumber, BigNumberish } from "ethers";
+import { Contract, ContractFactory, BigNumber, BigNumberish } from "ethers";
 // @ts-ignore
 import { poseidonContract, buildPoseidon } from "circomlibjs";
 // @ts-ignore
@@ -86,7 +86,8 @@ function parseProof(proof: any): Proof {
 
 describe("ETHTornado", function () {
     let tornado: ETHTornado;
-    let poseidon: Function;
+    let poseidon: any;
+    let poseidonContract: Contract;
 
     before(async () => {
         poseidon = await buildPoseidon();
@@ -96,7 +97,7 @@ describe("ETHTornado", function () {
         //poseidonHashFn = await buildPoseidon();
         const [signer] = await ethers.getSigners();
         const verifier = await new Verifier__factory(signer).deploy();
-        const poseidonContract = await getPoseidonFactory(2).connect(signer).deploy();
+        poseidonContract = await getPoseidonFactory(2).connect(signer).deploy();
         tornado = await new ETHTornado__factory(signer).deploy(
             verifier.address,
             ETH_AMOUNT,
@@ -104,6 +105,14 @@ describe("ETHTornado", function () {
             poseidonContract.address
         );
     });
+    it("generates same poseidon hash", async function () {
+        const res = await poseidonContract["poseidon(uint256[2])"]([1,2]);
+        const res2 = poseidon([1,2]);
+
+        assert.equal(res.toString(), poseidon.F.toString(res2));
+
+    }).timeout(500000);
+
     it("deposit and withdraw", async function () {
         const [userOldSigner, relayerSigner, userNewSigner] =
             await ethers.getSigners();
