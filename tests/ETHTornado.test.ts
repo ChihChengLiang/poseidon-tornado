@@ -14,7 +14,7 @@ import path from "path";
 const ETH_AMOUNT = ethers.utils.parseEther("1");
 const HEIGHT = 20;
 
-function poseidonHash(poseidon: Function, inputs: BigNumberish[]): string {
+function poseidonHash(poseidon: any, inputs: BigNumberish[]): string {
     const hash = poseidon(inputs.map((x) => BigNumber.from(x).toBigInt()));
     const bytes32 = ethers.utils.hexZeroPad(
         BigNumber.from(hash).toHexString(),
@@ -24,9 +24,9 @@ function poseidonHash(poseidon: Function, inputs: BigNumberish[]): string {
 }
 
 class PoseidonHasher implements Hasher {
-    poseidon: Function;
+    poseidon: any;
 
-    constructor(poseidon: Function) {
+    constructor(poseidon: any) {
         this.poseidon = poseidon;
     }
 
@@ -40,12 +40,12 @@ class Deposit {
 
     private constructor(
         public readonly nullifier: Uint8Array,
-        public poseidon: Function,
+        public poseidon: any,
         public leafIndex?: number
     ) {
         this.poseidon = poseidon;
     }
-    static new(poseidon: Function) {
+    static new(poseidon: any) {
         const nullifier = ethers.utils.randomBytes(15);
         return new this(nullifier, poseidon);
     }
