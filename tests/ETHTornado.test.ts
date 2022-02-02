@@ -16,11 +16,16 @@ const HEIGHT = 20;
 
 function poseidonHash(poseidon: any, inputs: BigNumberish[]): string {
     const hash = poseidon(inputs.map((x) => BigNumber.from(x).toBigInt()));
-    const bytes32 = ethers.utils.hexZeroPad(
-        BigNumber.from(hash).toHexString(),
-        32
-    );
-    return bytes32;
+    const hashStr = poseidon.F.toString(hash);
+    const hashHex = BigNumber.from(hashStr).toHexString();
+
+    // XXX - makes hash bigger than field?
+    // const bytes32 = ethers.utils.hexZeroPad(
+    //     BigNumber.from(hash).toHexString(),
+    //     32
+    // );
+
+    return hashHex;
 }
 
 class PoseidonHasher implements Hasher {
@@ -47,10 +52,13 @@ class Deposit {
     }
     static new(poseidon: any) {
         const nullifier = ethers.utils.randomBytes(15);
+        console.log("Nullifier", nullifier);
         return new this(nullifier, poseidon);
     }
     get commitment() {
-        return poseidonHash(this.poseidon, [this.nullifier, 0]);
+        var hash = poseidonHash(this.poseidon, [1, 2]);
+        console.log("commitment hash", hash);
+        return poseidonHash(this.poseidon, [1, 2]);
     }
 
     get nullifierHash() {
@@ -117,6 +125,9 @@ describe("ETHTornado", function () {
         const [userOldSigner, relayerSigner, userNewSigner] =
             await ethers.getSigners();
         const deposit = Deposit.new(poseidon);
+
+        // XXX Sometimes this is bigger than field for some reason
+        console.log("deposit commitment 1", deposit.commitment);
         const tx = await tornado
             .connect(userOldSigner)
             .deposit(deposit.commitment, { value: ETH_AMOUNT });
@@ -128,6 +139,7 @@ describe("ETHTornado", function () {
         // XXX Tests fail here
         // AssertionError: expected '0xf3c07b10bdcef09c269e633587caa3885fb204ddbfee021fdb8810398a5b2707' to equal '0x2b0f6fc0179fa65b6f73627c0e1e84c7374d2eaec44c9a48f2571393ea77bcbb'
         assert.equal(events[0].args.commitment, deposit.commitment);
+        console.log("Assert 1 succeeds");
         console.log("Deposit gas cost", receipt.gasUsed.toNumber());
         deposit.leafIndex = events[0].args.leafIndex;
 
