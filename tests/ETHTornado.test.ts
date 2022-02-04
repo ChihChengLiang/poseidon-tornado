@@ -171,12 +171,10 @@ describe("ETHTornado", function () {
             pathIndices: path_index,
         };
 
-        const wasmPath = path.join(__dirname, "../build/withdraw.wasm");
+        const wasmPath = path.join(__dirname, "../build/withdraw_js/withdraw.wasm");
         const zkeyPath = path.join(__dirname, "../build/circuit_final.zkey");
 
         console.log("pre proof");
-        // XXX: Fails here now wit:
-        // > CompileError: WebAssembly.compile(): BufferSource argument is empty
         const { proof } = await groth16.fullProve(witness, wasmPath, zkeyPath);
         console.log("post proof");
         const solProof = parseProof(proof);
