@@ -11,6 +11,8 @@ import { MerkleTree, Hasher } from "../src/merkleTree";
 import { groth16 } from "snarkjs";
 import path from "path";
 
+import { readFileSync } from 'fs';
+
 const ETH_AMOUNT = ethers.utils.parseEther("1");
 const HEIGHT = 20;
 
@@ -175,7 +177,21 @@ describe("ETHTornado", function () {
         const zkeyPath = path.join(__dirname, "../build/circuit_final.zkey");
 
         console.log("pre proof");
-        const { proof } = await groth16.fullProve(witness, wasmPath, zkeyPath);
+
+        // XXX Here - let's try using generated witness_calculator instead
+        const wc = require("../build/withdraw_js/witness_calculator");
+
+        // Error in template MerkleTreeChecker_136 line: 40
+        // Before we got " 4 Assert Failed. inside of doCalculateWitness. Something related to input signals",
+        // So seems to be progressing / get richer error
+        const buffer = readFileSync(wasmPath);
+        const witnessCalculator = await wc(buffer);
+        const witnessBuffer = await witnessCalculator.calculateWTNSBin(witness, 0);
+        const { proof, publicSignals } = await groth16.prove(zkeyPath, witnessBuffer);
+
+        console.log("post proof");
+
+        //const { proof } = await groth16.fullProve(witness, wasmPath, zkeyPath);
         console.log("post proof");
         const solProof = parseProof(proof);
 
