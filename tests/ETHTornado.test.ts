@@ -179,9 +179,6 @@ describe("ETHTornado", function () {
 
     }).timeout(500000);
 
-    // XXX Current error:
-  // TypeError: this.instance.exports.getInputSize is not a function
-
     it("prevent a user withdrawing twice", async function () {
         const [userOldSigner, relayerSigner, userNewSigner] =
             await ethers.getSigners();
