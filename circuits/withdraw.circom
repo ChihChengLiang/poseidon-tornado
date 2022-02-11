@@ -48,4 +48,4 @@ template Withdraw(levels) {
     relayerSquare <== relayer * relayer;
 }
 
-component main {public [root,nullifierHash,recipient,relayer,fee,nullifier]} = Withdraw(20);
+component main {public [root,nullifierHash,recipient,relayer,fee]} = Withdraw(20);
