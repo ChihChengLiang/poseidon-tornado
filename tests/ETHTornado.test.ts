@@ -11,7 +11,7 @@ import { MerkleTree, Hasher } from "../src/merkleTree";
 import { groth16 } from "snarkjs";
 import path from "path";
 
-import { readFileSync } from 'fs';
+import { readFileSync } from "fs";
 
 const ETH_AMOUNT = ethers.utils.parseEther("1");
 const HEIGHT = 20;
@@ -37,7 +37,6 @@ class PoseidonHasher implements Hasher {
 }
 
 class Deposit {
-
     private constructor(
         public readonly nullifier: Uint8Array,
         public poseidon: any,
@@ -106,11 +105,10 @@ describe("ETHTornado", function () {
     });
 
     it("generates same poseidon hash", async function () {
-        const res = await poseidonContract["poseidon(uint256[2])"]([1,2]);
-        const res2 = poseidon([1,2]);
+        const res = await poseidonContract["poseidon(uint256[2])"]([1, 2]);
+        const res2 = poseidon([1, 2]);
 
         assert.equal(res.toString(), poseidon.F.toString(res2));
-
     }).timeout(500000);
 
     it("deposit and withdraw", async function () {
@@ -130,7 +128,11 @@ describe("ETHTornado", function () {
         console.log("Deposit gas cost", receipt.gasUsed.toNumber());
         deposit.leafIndex = events[0].args.leafIndex;
 
-        const tree = new MerkleTree(HEIGHT, "test", new PoseidonHasher(poseidon));
+        const tree = new MerkleTree(
+            HEIGHT,
+            "test",
+            new PoseidonHasher(poseidon)
+        );
         assert.equal(await tree.root(), await tornado.roots(0));
         await tree.insert(deposit.commitment);
         assert.equal(tree.totalElements, await tornado.nextIndex());
@@ -158,7 +160,10 @@ describe("ETHTornado", function () {
             pathIndices: path_index,
         };
 
-        const wasmPath = path.join(__dirname, "../build/withdraw_js/withdraw.wasm");
+        const wasmPath = path.join(
+            __dirname,
+            "../build/withdraw_js/withdraw.wasm"
+        );
         const zkeyPath = path.join(__dirname, "../build/circuit_final.zkey");
 
         // Use generated witness_calculator and groth16.prove instead of groth.fullProve
@@ -166,7 +171,10 @@ describe("ETHTornado", function () {
         const wc = require("../build/withdraw_js/witness_calculator");
         const buffer = readFileSync(wasmPath);
         const witnessCalculator = await wc(buffer);
-        const witnessBuffer = await witnessCalculator.calculateWTNSBin(witness, 0);
+        const witnessBuffer = await witnessCalculator.calculateWTNSBin(
+            witness,
+            0
+        );
         const { proof, _ } = await groth16.prove(zkeyPath, witnessBuffer);
 
         const solProof = parseProof(proof);
@@ -176,7 +184,6 @@ describe("ETHTornado", function () {
             .withdraw(solProof, root, nullifierHash, recipient, relayer, fee);
         const receiptWithdraw = await txWithdraw.wait();
         console.log("Withdraw gas cost", receiptWithdraw.gasUsed.toNumber());
-
     }).timeout(500000);
 
     it("prevent a user withdrawing twice", async function () {
@@ -193,7 +200,11 @@ describe("ETHTornado", function () {
         );
         deposit.leafIndex = events[0].args.leafIndex;
 
-        const tree = new MerkleTree(HEIGHT, "test", new PoseidonHasher(poseidon));
+        const tree = new MerkleTree(
+            HEIGHT,
+            "test",
+            new PoseidonHasher(poseidon)
+        );
         await tree.insert(deposit.commitment);
 
         const nullifierHash = deposit.nullifierHash;
@@ -218,13 +229,19 @@ describe("ETHTornado", function () {
             pathIndices: path_index,
         };
 
-        const wasmPath = path.join(__dirname, "../build/withdraw_js/withdraw.wasm");
+        const wasmPath = path.join(
+            __dirname,
+            "../build/withdraw_js/withdraw.wasm"
+        );
         const zkeyPath = path.join(__dirname, "../build/circuit_final.zkey");
 
         const wc = require("../build/withdraw_js/witness_calculator");
         const buffer = readFileSync(wasmPath);
         const witnessCalculator = await wc(buffer);
-        const witnessBuffer = await witnessCalculator.calculateWTNSBin(witness, 0);
+        const witnessBuffer = await witnessCalculator.calculateWTNSBin(
+            witness,
+            0
+        );
         const { proof, _ } = await groth16.prove(zkeyPath, witnessBuffer);
 
         const solProof = parseProof(proof);
@@ -270,7 +287,11 @@ describe("ETHTornado", function () {
         depositAttacker.leafIndex = 1;
 
         // The attacker constructed a tree which includes their deposit
-        const tree = new MerkleTree(HEIGHT, "test", new PoseidonHasher(poseidon));
+        const tree = new MerkleTree(
+            HEIGHT,
+            "test",
+            new PoseidonHasher(poseidon)
+        );
         await tree.insert(depositHonest.commitment);
         await tree.insert(depositAttacker.commitment);
 
@@ -297,13 +318,19 @@ describe("ETHTornado", function () {
             pathIndices: path_index,
         };
 
-        const wasmPath = path.join(__dirname, "../build/withdraw_js/withdraw.wasm");
+        const wasmPath = path.join(
+            __dirname,
+            "../build/withdraw_js/withdraw.wasm"
+        );
         const zkeyPath = path.join(__dirname, "../build/circuit_final.zkey");
 
         const wc = require("../build/withdraw_js/witness_calculator");
         const buffer = readFileSync(wasmPath);
         const witnessCalculator = await wc(buffer);
-        const witnessBuffer = await witnessCalculator.calculateWTNSBin(witness, 0);
+        const witnessBuffer = await witnessCalculator.calculateWTNSBin(
+            witness,
+            0
+        );
         const { proof, _ } = await groth16.prove(zkeyPath, witnessBuffer);
 
         const solProof = parseProof(proof);
