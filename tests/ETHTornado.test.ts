@@ -58,9 +58,9 @@ class Deposit {
         return new this(nullifier, poseidon);
     }
     get commitment() {
-        var hash = poseidonHash(this.poseidon, [1, 2]);
+        var hash = poseidonHash(this.poseidon, [this.nullifier, 0]);
         console.log("commitment hash", hash);
-        return poseidonHash(this.poseidon, [1, 2]);
+        return poseidonHash(this.poseidon, [this.nullifier, 0]);
     }
 
     get nullifierHash() {
