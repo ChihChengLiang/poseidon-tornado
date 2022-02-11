@@ -21,12 +21,6 @@ function poseidonHash(poseidon: any, inputs: BigNumberish[]): string {
     const hashStr = poseidon.F.toString(hash);
     const hashHex = BigNumber.from(hashStr).toHexString();
 
-    // XXX - makes hash bigger than field?
-    // const bytes32 = ethers.utils.hexZeroPad(
-    //     BigNumber.from(hash).toHexString(),
-    //     32
-    // );
-
     return hashHex;
 }
 
@@ -43,7 +37,6 @@ class PoseidonHasher implements Hasher {
 }
 
 class Deposit {
-//    const poseidon: Function;
 
     private constructor(
         public readonly nullifier: Uint8Array,
@@ -54,12 +47,9 @@ class Deposit {
     }
     static new(poseidon: any) {
         const nullifier = ethers.utils.randomBytes(15);
-        console.log("Nullifier", nullifier);
         return new this(nullifier, poseidon);
     }
     get commitment() {
-        var hash = poseidonHash(this.poseidon, [this.nullifier, 0]);
-        console.log("commitment hash", hash);
         return poseidonHash(this.poseidon, [this.nullifier, 0]);
     }
 
@@ -104,7 +94,6 @@ describe("ETHTornado", function () {
     });
 
     beforeEach(async function () {
-        //poseidonHashFn = await buildPoseidon();
         const [signer] = await ethers.getSigners();
         const verifier = await new Verifier__factory(signer).deploy();
         poseidonContract = await getPoseidonFactory(2).connect(signer).deploy();
@@ -128,8 +117,6 @@ describe("ETHTornado", function () {
             await ethers.getSigners();
         const deposit = Deposit.new(poseidon);
 
-        // XXX Sometimes this is bigger than field for some reason
-        console.log("deposit commitment 1", deposit.commitment);
         const tx = await tornado
             .connect(userOldSigner)
             .deposit(deposit.commitment, { value: ETH_AMOUNT });
@@ -138,10 +125,7 @@ describe("ETHTornado", function () {
             tornado.filters.Deposit(),
             receipt.blockHash
         );
-        // XXX Tests fail here
-        // AssertionError: expected '0xf3c07b10bdcef09c269e633587caa3885fb204ddbfee021fdb8810398a5b2707' to equal '0x2b0f6fc0179fa65b6f73627c0e1e84c7374d2eaec44c9a48f2571393ea77bcbb'
         assert.equal(events[0].args.commitment, deposit.commitment);
-        console.log("Assert 1 succeeds");
         console.log("Deposit gas cost", receipt.gasUsed.toNumber());
         deposit.leafIndex = events[0].args.leafIndex;
 
@@ -181,9 +165,6 @@ describe("ETHTornado", function () {
         // XXX Here - let's try using generated witness_calculator instead
         const wc = require("../build/withdraw_js/witness_calculator");
 
-        // Error in template MerkleTreeChecker_136 line: 40
-        // Before we got " 4 Assert Failed. inside of doCalculateWitness. Something related to input signals",
-        // So seems to be progressing / get richer error
         const buffer = readFileSync(wasmPath);
         const witnessCalculator = await wc(buffer);
         const witnessBuffer = await witnessCalculator.calculateWTNSBin(witness, 0);
@@ -192,7 +173,7 @@ describe("ETHTornado", function () {
         console.log("post proof");
 
         //const { proof } = await groth16.fullProve(witness, wasmPath, zkeyPath);
-        console.log("post proof");
+
         const solProof = parseProof(proof);
 
         const txWithdraw = await tornado
