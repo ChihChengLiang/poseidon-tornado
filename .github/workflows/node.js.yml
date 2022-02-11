@@ -22,9 +22,10 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
-      - run: git clone https://github.com/iden3/circom.git
-      - run: (cd circom && cargo build --release)
-      - run: (cd circom && cargo install --path circom)
+      - run: mkdir build
+      - run: (cd build && git clone https://github.com/iden3/circom.git)
+      - run: (cd build/circom && cargo build --release)
+      - run: (cd build/circom && cargo install --path circom)
       - run: npm ci
       - run: npm run lint
       - run: npm run build
