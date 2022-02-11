@@ -18,10 +18,12 @@ const HEIGHT = 20;
 
 function poseidonHash(poseidon: any, inputs: BigNumberish[]): string {
     const hash = poseidon(inputs.map((x) => BigNumber.from(x).toBigInt()));
-    const hashStr = poseidon.F.toString(hash);
-    const hashHex = BigNumber.from(hashStr).toHexString();
-
-    return hashHex;
+    // pad zero to make it 32 bytes, so that the output can be taken as a bytes32 contract argument
+    const bytes32 = ethers.utils.hexZeroPad(
+        BigNumber.from(hash).toHexString(),
+        32
+    );
+    return bytes32;
 }
 
 class PoseidonHasher implements Hasher {
