@@ -160,8 +160,6 @@ describe("ETHTornado", function () {
         const wasmPath = path.join(__dirname, "../build/withdraw_js/withdraw.wasm");
         const zkeyPath = path.join(__dirname, "../build/circuit_final.zkey");
 
-        console.log("pre proof");
-
         // XXX Here - let's try using generated witness_calculator instead
         const wc = require("../build/withdraw_js/witness_calculator");
 
@@ -169,8 +167,6 @@ describe("ETHTornado", function () {
         const witnessCalculator = await wc(buffer);
         const witnessBuffer = await witnessCalculator.calculateWTNSBin(witness, 0);
         const { proof, publicSignals } = await groth16.prove(zkeyPath, witnessBuffer);
-
-        console.log("post proof");
 
         //const { proof } = await groth16.fullProve(witness, wasmPath, zkeyPath);
 
@@ -184,139 +180,137 @@ describe("ETHTornado", function () {
 
     }).timeout(500000);
 
-    // XXX Simplify debugging
-  //
-    // it("prevent a user withdrawing twice", async function () {
-    //     const [userOldSigner, relayerSigner, userNewSigner] =
-    //         await ethers.getSigners();
-    //     const deposit = Deposit.new(poseidon);
-    //     const tx = await tornado
-    //         .connect(userOldSigner)
-    //         .deposit(deposit.commitment, { value: ETH_AMOUNT });
-    //     const receipt = await tx.wait();
-    //     const events = await tornado.queryFilter(
-    //         tornado.filters.Deposit(),
-    //         receipt.blockHash
-    //     );
-    //     deposit.leafIndex = events[0].args.leafIndex;
+    it("prevent a user withdrawing twice", async function () {
+        const [userOldSigner, relayerSigner, userNewSigner] =
+            await ethers.getSigners();
+        const deposit = Deposit.new(poseidon);
+        const tx = await tornado
+            .connect(userOldSigner)
+            .deposit(deposit.commitment, { value: ETH_AMOUNT });
+        const receipt = await tx.wait();
+        const events = await tornado.queryFilter(
+            tornado.filters.Deposit(),
+            receipt.blockHash
+        );
+        deposit.leafIndex = events[0].args.leafIndex;
 
-    //     const tree = new MerkleTree(HEIGHT, "test", new PoseidonHasher(poseidon));
-    //     await tree.insert(deposit.commitment);
+        const tree = new MerkleTree(HEIGHT, "test", new PoseidonHasher(poseidon));
+        await tree.insert(deposit.commitment);
 
-    //     const nullifierHash = deposit.nullifierHash;
-    //     const recipient = await userNewSigner.getAddress();
-    //     const relayer = await relayerSigner.getAddress();
-    //     const fee = 0;
+        const nullifierHash = deposit.nullifierHash;
+        const recipient = await userNewSigner.getAddress();
+        const relayer = await relayerSigner.getAddress();
+        const fee = 0;
 
-    //     const { root, path_elements, path_index } = await tree.path(
-    //         deposit.leafIndex
-    //     );
+        const { root, path_elements, path_index } = await tree.path(
+            deposit.leafIndex
+        );
 
-    //     const witness = {
-    //         // Public
-    //         root,
-    //         nullifierHash,
-    //         recipient,
-    //         relayer,
-    //         fee,
-    //         // Private
-    //         nullifier: BigNumber.from(deposit.nullifier).toBigInt(),
-    //         pathElements: path_elements,
-    //         pathIndices: path_index,
-    //     };
+        const witness = {
+            // Public
+            root,
+            nullifierHash,
+            recipient,
+            relayer,
+            fee,
+            // Private
+            nullifier: BigNumber.from(deposit.nullifier).toBigInt(),
+            pathElements: path_elements,
+            pathIndices: path_index,
+        };
 
-    //     const wasmPath = path.join(__dirname, "../build/withdraw.wasm");
-    //     const zkeyPath = path.join(__dirname, "../build/circuit_final.zkey");
+        const wasmPath = path.join(__dirname, "../build/withdraw_js/withdraw.wasm");
+        const zkeyPath = path.join(__dirname, "../build/withdraw_js/circuit_final.zkey");
 
-    //     const { proof } = await groth16.fullProve(witness, wasmPath, zkeyPath);
-    //     const solProof = parseProof(proof);
+        const { proof } = await groth16.fullProve(witness, wasmPath, zkeyPath);
+        const solProof = parseProof(proof);
 
-    //     // First withdraw
-    //     await tornado
-    //         .connect(relayerSigner)
-    //         .withdraw(solProof, root, nullifierHash, recipient, relayer, fee);
+        // First withdraw
+        await tornado
+            .connect(relayerSigner)
+            .withdraw(solProof, root, nullifierHash, recipient, relayer, fee);
 
-    //     // Second withdraw
-    //     await tornado
-    //         .connect(relayerSigner)
-    //         .withdraw(solProof, root, nullifierHash, recipient, relayer, fee)
-    //         .then(
-    //             () => {
-    //                 assert.fail("Expect tx to fail");
-    //             },
-    //             (error) => {
-    //                 expect(error.message).to.have.string(
-    //                     "The note has been already spent"
-    //                 );
-    //             }
-    //         );
-    // }).timeout(500000);
-    // it("prevent a user withdrawing from a non-existent root", async function () {
-    //     const [honestUser, relayerSigner, attacker] = await ethers.getSigners();
+        // Second withdraw
+        await tornado
+            .connect(relayerSigner)
+            .withdraw(solProof, root, nullifierHash, recipient, relayer, fee)
+            .then(
+                () => {
+                    assert.fail("Expect tx to fail");
+                },
+                (error) => {
+                    expect(error.message).to.have.string(
+                        "The note has been already spent"
+                    );
+                }
+            );
+    }).timeout(500000);
+    it("prevent a user withdrawing from a non-existent root", async function () {
+        const [honestUser, relayerSigner, attacker] = await ethers.getSigners();
 
-    //     // An honest user makes a deposit
-    //     // the point here is just to top up some balance in the tornado contract
-    //     const depositHonest = Deposit.new(poseidon);
-    //     const tx = await tornado
-    //         .connect(honestUser)
-    //         .deposit(depositHonest.commitment, { value: ETH_AMOUNT });
-    //     const receipt = await tx.wait();
-    //     const events = await tornado.queryFilter(
-    //         tornado.filters.Deposit(),
-    //         receipt.blockHash
-    //     );
-    //     depositHonest.leafIndex = events[0].args.leafIndex;
+        // An honest user makes a deposit
+        // the point here is just to top up some balance in the tornado contract
+        const depositHonest = Deposit.new(poseidon);
+        const tx = await tornado
+            .connect(honestUser)
+            .deposit(depositHonest.commitment, { value: ETH_AMOUNT });
+        const receipt = await tx.wait();
+        const events = await tornado.queryFilter(
+            tornado.filters.Deposit(),
+            receipt.blockHash
+        );
+        depositHonest.leafIndex = events[0].args.leafIndex;
 
-    //     // The attacker never made a deposit on chain
-    //     const depositAttacker = Deposit.new(poseidon);
-    //     depositAttacker.leafIndex = 1;
+        // The attacker never made a deposit on chain
+        const depositAttacker = Deposit.new(poseidon);
+        depositAttacker.leafIndex = 1;
 
-    //     // The attacker constructed a tree which includes their deposit
-    //     const tree = new MerkleTree(HEIGHT, "test", new PoseidonHasher(poseidon));
-    //     await tree.insert(depositHonest.commitment);
-    //     await tree.insert(depositAttacker.commitment);
+        // The attacker constructed a tree which includes their deposit
+        const tree = new MerkleTree(HEIGHT, "test", new PoseidonHasher(poseidon));
+        await tree.insert(depositHonest.commitment);
+        await tree.insert(depositAttacker.commitment);
 
-    //     const nullifierHash = depositAttacker.nullifierHash;
-    //     const recipient = await attacker.getAddress();
-    //     const relayer = await relayerSigner.getAddress();
-    //     const fee = 0;
+        const nullifierHash = depositAttacker.nullifierHash;
+        const recipient = await attacker.getAddress();
+        const relayer = await relayerSigner.getAddress();
+        const fee = 0;
 
-    //     // Attacker construct the proof
-    //     const { root, path_elements, path_index } = await tree.path(
-    //         depositAttacker.leafIndex
-    //     );
+        // Attacker construct the proof
+        const { root, path_elements, path_index } = await tree.path(
+            depositAttacker.leafIndex
+        );
 
-    //     const witness = {
-    //         // Public
-    //         root,
-    //         nullifierHash,
-    //         recipient,
-    //         relayer,
-    //         fee,
-    //         // Private
-    //         nullifier: BigNumber.from(depositAttacker.nullifier).toBigInt(),
-    //         pathElements: path_elements,
-    //         pathIndices: path_index,
-    //     };
+        const witness = {
+            // Public
+            root,
+            nullifierHash,
+            recipient,
+            relayer,
+            fee,
+            // Private
+            nullifier: BigNumber.from(depositAttacker.nullifier).toBigInt(),
+            pathElements: path_elements,
+            pathIndices: path_index,
+        };
 
-    //     const wasmPath = path.join(__dirname, "../build/withdraw.wasm");
-    //     const zkeyPath = path.join(__dirname, "../build/circuit_final.zkey");
+        const wasmPath = path.join(__dirname, "../build/withdraw_js/withdraw.wasm");
+        const zkeyPath = path.join(__dirname, "../build/withdraw_js/circuit_final.zkey");
 
-    //     const { proof } = await groth16.fullProve(witness, wasmPath, zkeyPath);
-    //     const solProof = parseProof(proof);
+        const { proof } = await groth16.fullProve(witness, wasmPath, zkeyPath);
+        const solProof = parseProof(proof);
 
-    //     await tornado
-    //         .connect(relayerSigner)
-    //         .withdraw(solProof, root, nullifierHash, recipient, relayer, fee)
-    //         .then(
-    //             () => {
-    //                 assert.fail("Expect tx to fail");
-    //             },
-    //             (error) => {
-    //                 expect(error.message).to.have.string(
-    //                     "Cannot find your merkle root"
-    //                 );
-    //             }
-    //         );
-    // }).timeout(500000);
+        await tornado
+            .connect(relayerSigner)
+            .withdraw(solProof, root, nullifierHash, recipient, relayer, fee)
+            .then(
+                () => {
+                    assert.fail("Expect tx to fail");
+                },
+                (error) => {
+                    expect(error.message).to.have.string(
+                        "Cannot find your merkle root"
+                    );
+                }
+            );
+    }).timeout(500000);
 });
