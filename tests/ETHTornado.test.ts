@@ -104,6 +104,7 @@ describe("ETHTornado", function () {
             poseidonContract.address
         );
     });
+
     it("generates same poseidon hash", async function () {
         const res = await poseidonContract["poseidon(uint256[2])"]([1,2]);
         const res2 = poseidon([1,2]);
@@ -160,15 +161,13 @@ describe("ETHTornado", function () {
         const wasmPath = path.join(__dirname, "../build/withdraw_js/withdraw.wasm");
         const zkeyPath = path.join(__dirname, "../build/circuit_final.zkey");
 
-        // XXX Here - let's try using generated witness_calculator instead
+        // Use generated witness_calculator and groth16.prove instead of groth.fullProve
+        //const { proof } = await groth16.fullProve(witness, wasmPath, zkeyPath);
         const wc = require("../build/withdraw_js/witness_calculator");
-
         const buffer = readFileSync(wasmPath);
         const witnessCalculator = await wc(buffer);
         const witnessBuffer = await witnessCalculator.calculateWTNSBin(witness, 0);
-        const { proof, publicSignals } = await groth16.prove(zkeyPath, witnessBuffer);
-
-        //const { proof } = await groth16.fullProve(witness, wasmPath, zkeyPath);
+        const { proof, _ } = await groth16.prove(zkeyPath, witnessBuffer);
 
         const solProof = parseProof(proof);
 
@@ -179,6 +178,9 @@ describe("ETHTornado", function () {
         console.log("Withdraw gas cost", receiptWithdraw.gasUsed.toNumber());
 
     }).timeout(500000);
+
+    // XXX Current error:
+  // TypeError: this.instance.exports.getInputSize is not a function
 
     it("prevent a user withdrawing twice", async function () {
         const [userOldSigner, relayerSigner, userNewSigner] =
@@ -220,9 +222,14 @@ describe("ETHTornado", function () {
         };
 
         const wasmPath = path.join(__dirname, "../build/withdraw_js/withdraw.wasm");
-        const zkeyPath = path.join(__dirname, "../build/withdraw_js/circuit_final.zkey");
+        const zkeyPath = path.join(__dirname, "../build/circuit_final.zkey");
 
-        const { proof } = await groth16.fullProve(witness, wasmPath, zkeyPath);
+        const wc = require("../build/withdraw_js/witness_calculator");
+        const buffer = readFileSync(wasmPath);
+        const witnessCalculator = await wc(buffer);
+        const witnessBuffer = await witnessCalculator.calculateWTNSBin(witness, 0);
+        const { proof, _ } = await groth16.prove(zkeyPath, witnessBuffer);
+
         const solProof = parseProof(proof);
 
         // First withdraw
@@ -294,9 +301,14 @@ describe("ETHTornado", function () {
         };
 
         const wasmPath = path.join(__dirname, "../build/withdraw_js/withdraw.wasm");
-        const zkeyPath = path.join(__dirname, "../build/withdraw_js/circuit_final.zkey");
+        const zkeyPath = path.join(__dirname, "../build/circuit_final.zkey");
 
-        const { proof } = await groth16.fullProve(witness, wasmPath, zkeyPath);
+        const wc = require("../build/withdraw_js/witness_calculator");
+        const buffer = readFileSync(wasmPath);
+        const witnessCalculator = await wc(buffer);
+        const witnessBuffer = await witnessCalculator.calculateWTNSBin(witness, 0);
+        const { proof, _ } = await groth16.prove(zkeyPath, witnessBuffer);
+
         const solProof = parseProof(proof);
 
         await tornado
