@@ -24,7 +24,6 @@ function poseidonHash(poseidon: any, inputs: BigNumberish[]): string {
     const hashHex = BigNumber.from(hashStr).toHexString();
     // pad zero to make it 32 bytes, so that the output can be taken as a bytes32 contract argument
     const bytes32 = ethers.utils.hexZeroPad(hashHex, 32);
-    );
     return bytes32;
 }
 
