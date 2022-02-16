@@ -11,8 +11,6 @@ import { MerkleTree, Hasher } from "../src/merkleTree";
 import { groth16 } from "snarkjs";
 import path from "path";
 
-import { readFileSync } from "fs";
-
 const ETH_AMOUNT = ethers.utils.parseEther("1");
 const HEIGHT = 20;
 
@@ -75,8 +73,12 @@ interface Proof {
     c: [BigNumberish, BigNumberish];
 }
 
-function parseProof(proof: any): Proof {
-    return {
+async function prove(witness: any): Promise<Proof> {
+    const wasmPath = path.join(__dirname, "../build/withdraw_js/withdraw.wasm");
+    const zkeyPath = path.join(__dirname, "../build/circuit_final.zkey");
+
+    const { proof } = await groth16.fullProve(witness, wasmPath, zkeyPath);
+    const solProof: Proof = {
         a: [proof.pi_a[0], proof.pi_a[1]],
         b: [
             [proof.pi_b[0][1], proof.pi_b[0][0]],
@@ -84,6 +86,7 @@ function parseProof(proof: any): Proof {
         ],
         c: [proof.pi_c[0], proof.pi_c[1]],
     };
+    return solProof;
 }
 
 describe("ETHTornado", function () {
@@ -163,24 +166,7 @@ describe("ETHTornado", function () {
             pathIndices: path_index,
         };
 
-        const wasmPath = path.join(
-            __dirname,
-            "../build/withdraw_js/withdraw.wasm"
-        );
-        const zkeyPath = path.join(__dirname, "../build/circuit_final.zkey");
-
-        // Use generated witness_calculator and groth16.prove instead of groth.fullProve
-        //const { proof } = await groth16.fullProve(witness, wasmPath, zkeyPath);
-        const wc = require("../build/withdraw_js/witness_calculator");
-        const buffer = readFileSync(wasmPath);
-        const witnessCalculator = await wc(buffer);
-        const witnessBuffer = await witnessCalculator.calculateWTNSBin(
-            witness,
-            0
-        );
-        const { proof, _ } = await groth16.prove(zkeyPath, witnessBuffer);
-
-        const solProof = parseProof(proof);
+        const solProof = await prove(witness);
 
         const txWithdraw = await tornado
             .connect(relayerSigner)
@@ -232,22 +218,7 @@ describe("ETHTornado", function () {
             pathIndices: path_index,
         };
 
-        const wasmPath = path.join(
-            __dirname,
-            "../build/withdraw_js/withdraw.wasm"
-        );
-        const zkeyPath = path.join(__dirname, "../build/circuit_final.zkey");
-
-        const wc = require("../build/withdraw_js/witness_calculator");
-        const buffer = readFileSync(wasmPath);
-        const witnessCalculator = await wc(buffer);
-        const witnessBuffer = await witnessCalculator.calculateWTNSBin(
-            witness,
-            0
-        );
-        const { proof, _ } = await groth16.prove(zkeyPath, witnessBuffer);
-
-        const solProof = parseProof(proof);
+        const solProof = await prove(witness);
 
         // First withdraw
         await tornado
@@ -321,22 +292,7 @@ describe("ETHTornado", function () {
             pathIndices: path_index,
         };
 
-        const wasmPath = path.join(
-            __dirname,
-            "../build/withdraw_js/withdraw.wasm"
-        );
-        const zkeyPath = path.join(__dirname, "../build/circuit_final.zkey");
-
-        const wc = require("../build/withdraw_js/witness_calculator");
-        const buffer = readFileSync(wasmPath);
-        const witnessCalculator = await wc(buffer);
-        const witnessBuffer = await witnessCalculator.calculateWTNSBin(
-            witness,
-            0
-        );
-        const { proof, _ } = await groth16.prove(zkeyPath, witnessBuffer);
-
-        const solProof = parseProof(proof);
+        const solProof = await prove(witness);
 
         await tornado
             .connect(relayerSigner)
