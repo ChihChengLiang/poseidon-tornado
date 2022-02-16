@@ -13,6 +13,7 @@ jobs:
     strategy:
       matrix:
         node-version: [14.x]
+        rust: [stable]
 
     steps:
       - uses: actions/checkout@v2
@@ -21,6 +22,10 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
+      - run: mkdir build
+      - run: (cd build && git clone https://github.com/iden3/circom.git)
+      - run: (cd build/circom && cargo build --release)
+      - run: (cd build/circom && cargo install --path circom)
       - run: npm ci
       - run: npm run lint
       - run: npm run build

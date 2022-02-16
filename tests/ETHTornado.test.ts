@@ -2,57 +2,69 @@ import { assert, expect } from "chai";
 import { ETHTornado__factory, Verifier__factory, ETHTornado } from "../types/";
 
 import { ethers } from "hardhat";
-import { ContractFactory, BigNumber, BigNumberish } from "ethers";
+import { Contract, ContractFactory, BigNumber, BigNumberish } from "ethers";
 // @ts-ignore
-import { createCode, generateABI } from "circomlib/src/poseidon_gencontract";
+import { poseidonContract, buildPoseidon } from "circomlibjs";
 // @ts-ignore
-import poseidon from "circomlib/src/poseidon";
 import { MerkleTree, Hasher } from "../src/merkleTree";
 // @ts-ignore
 import { groth16 } from "snarkjs";
 import path from "path";
 
+import { readFileSync } from "fs";
+
 const ETH_AMOUNT = ethers.utils.parseEther("1");
 const HEIGHT = 20;
 
-function poseidonHash(inputs: BigNumberish[]): string {
+function poseidonHash(poseidon: any, inputs: BigNumberish[]): string {
     const hash = poseidon(inputs.map((x) => BigNumber.from(x).toBigInt()));
-    const bytes32 = ethers.utils.hexZeroPad(
-        BigNumber.from(hash).toHexString(),
-        32
-    );
+    // Make the number within the field size
+    const hashStr = poseidon.F.toString(hash);
+    // Make it a valid hex string
+    const hashHex = BigNumber.from(hashStr).toHexString();
+    // pad zero to make it 32 bytes, so that the output can be taken as a bytes32 contract argument
+    const bytes32 = ethers.utils.hexZeroPad(hashHex, 32);
     return bytes32;
 }
 
 class PoseidonHasher implements Hasher {
+    poseidon: any;
+
+    constructor(poseidon: any) {
+        this.poseidon = poseidon;
+    }
+
     hash(left: string, right: string) {
-        return poseidonHash([left, right]);
+        return poseidonHash(this.poseidon, [left, right]);
     }
 }
 
 class Deposit {
     private constructor(
         public readonly nullifier: Uint8Array,
+        public poseidon: any,
         public leafIndex?: number
-    ) {}
-    static new() {
+    ) {
+        this.poseidon = poseidon;
+    }
+    static new(poseidon: any) {
         const nullifier = ethers.utils.randomBytes(15);
-        return new this(nullifier);
+        return new this(nullifier, poseidon);
     }
     get commitment() {
-        return poseidonHash([this.nullifier, 0]);
+        return poseidonHash(this.poseidon, [this.nullifier, 0]);
     }
 
     get nullifierHash() {
         if (!this.leafIndex && this.leafIndex !== 0)
             throw Error("leafIndex is unset yet");
-        return poseidonHash([this.nullifier, 1, this.leafIndex]);
+        return poseidonHash(this.poseidon, [this.nullifier, 1, this.leafIndex]);
     }
 }
 
 function getPoseidonFactory(nInputs: number) {
-    const bytecode = createCode(nInputs);
-    const abiJson = generateABI(nInputs);
+    const bytecode = poseidonContract.createCode(nInputs);
+    const abiJson = poseidonContract.generateABI(nInputs);
     const abi = new ethers.utils.Interface(abiJson);
     return new ContractFactory(abi, bytecode);
 }
@@ -76,21 +88,37 @@ function parseProof(proof: any): Proof {
 
 describe("ETHTornado", function () {
     let tornado: ETHTornado;
+    let poseidon: any;
+    let poseidonContract: Contract;
+
+    before(async () => {
+        poseidon = await buildPoseidon();
+    });
+
     beforeEach(async function () {
         const [signer] = await ethers.getSigners();
         const verifier = await new Verifier__factory(signer).deploy();
-        const poseidon = await getPoseidonFactory(2).connect(signer).deploy();
+        poseidonContract = await getPoseidonFactory(2).connect(signer).deploy();
         tornado = await new ETHTornado__factory(signer).deploy(
             verifier.address,
             ETH_AMOUNT,
             HEIGHT,
-            poseidon.address
+            poseidonContract.address
         );
     });
+
+    it("generates same poseidon hash", async function () {
+        const res = await poseidonContract["poseidon(uint256[2])"]([1, 2]);
+        const res2 = poseidon([1, 2]);
+
+        assert.equal(res.toString(), poseidon.F.toString(res2));
+    }).timeout(500000);
+
     it("deposit and withdraw", async function () {
         const [userOldSigner, relayerSigner, userNewSigner] =
             await ethers.getSigners();
-        const deposit = Deposit.new();
+        const deposit = Deposit.new(poseidon);
+
         const tx = await tornado
             .connect(userOldSigner)
             .deposit(deposit.commitment, { value: ETH_AMOUNT });
@@ -103,7 +131,11 @@ describe("ETHTornado", function () {
         console.log("Deposit gas cost", receipt.gasUsed.toNumber());
         deposit.leafIndex = events[0].args.leafIndex;
 
-        const tree = new MerkleTree(HEIGHT, "test", new PoseidonHasher());
+        const tree = new MerkleTree(
+            HEIGHT,
+            "test",
+            new PoseidonHasher(poseidon)
+        );
         assert.equal(await tree.root(), await tornado.roots(0));
         await tree.insert(deposit.commitment);
         assert.equal(tree.totalElements, await tornado.nextIndex());
@@ -131,10 +163,23 @@ describe("ETHTornado", function () {
             pathIndices: path_index,
         };
 
-        const wasmPath = path.join(__dirname, "../build/withdraw.wasm");
+        const wasmPath = path.join(
+            __dirname,
+            "../build/withdraw_js/withdraw.wasm"
+        );
         const zkeyPath = path.join(__dirname, "../build/circuit_final.zkey");
 
-        const { proof } = await groth16.fullProve(witness, wasmPath, zkeyPath);
+        // Use generated witness_calculator and groth16.prove instead of groth.fullProve
+        //const { proof } = await groth16.fullProve(witness, wasmPath, zkeyPath);
+        const wc = require("../build/withdraw_js/witness_calculator");
+        const buffer = readFileSync(wasmPath);
+        const witnessCalculator = await wc(buffer);
+        const witnessBuffer = await witnessCalculator.calculateWTNSBin(
+            witness,
+            0
+        );
+        const { proof, _ } = await groth16.prove(zkeyPath, witnessBuffer);
+
         const solProof = parseProof(proof);
 
         const txWithdraw = await tornado
@@ -147,7 +192,7 @@ describe("ETHTornado", function () {
     it("prevent a user withdrawing twice", async function () {
         const [userOldSigner, relayerSigner, userNewSigner] =
             await ethers.getSigners();
-        const deposit = Deposit.new();
+        const deposit = Deposit.new(poseidon);
         const tx = await tornado
             .connect(userOldSigner)
             .deposit(deposit.commitment, { value: ETH_AMOUNT });
@@ -158,7 +203,11 @@ describe("ETHTornado", function () {
         );
         deposit.leafIndex = events[0].args.leafIndex;
 
-        const tree = new MerkleTree(HEIGHT, "test", new PoseidonHasher());
+        const tree = new MerkleTree(
+            HEIGHT,
+            "test",
+            new PoseidonHasher(poseidon)
+        );
         await tree.insert(deposit.commitment);
 
         const nullifierHash = deposit.nullifierHash;
@@ -183,10 +232,21 @@ describe("ETHTornado", function () {
             pathIndices: path_index,
         };
 
-        const wasmPath = path.join(__dirname, "../build/withdraw.wasm");
+        const wasmPath = path.join(
+            __dirname,
+            "../build/withdraw_js/withdraw.wasm"
+        );
         const zkeyPath = path.join(__dirname, "../build/circuit_final.zkey");
 
-        const { proof } = await groth16.fullProve(witness, wasmPath, zkeyPath);
+        const wc = require("../build/withdraw_js/witness_calculator");
+        const buffer = readFileSync(wasmPath);
+        const witnessCalculator = await wc(buffer);
+        const witnessBuffer = await witnessCalculator.calculateWTNSBin(
+            witness,
+            0
+        );
+        const { proof, _ } = await groth16.prove(zkeyPath, witnessBuffer);
+
         const solProof = parseProof(proof);
 
         // First withdraw
@@ -214,7 +274,7 @@ describe("ETHTornado", function () {
 
         // An honest user makes a deposit
         // the point here is just to top up some balance in the tornado contract
-        const depositHonest = Deposit.new();
+        const depositHonest = Deposit.new(poseidon);
         const tx = await tornado
             .connect(honestUser)
             .deposit(depositHonest.commitment, { value: ETH_AMOUNT });
@@ -226,11 +286,15 @@ describe("ETHTornado", function () {
         depositHonest.leafIndex = events[0].args.leafIndex;
 
         // The attacker never made a deposit on chain
-        const depositAttacker = Deposit.new();
+        const depositAttacker = Deposit.new(poseidon);
         depositAttacker.leafIndex = 1;
 
         // The attacker constructed a tree which includes their deposit
-        const tree = new MerkleTree(HEIGHT, "test", new PoseidonHasher());
+        const tree = new MerkleTree(
+            HEIGHT,
+            "test",
+            new PoseidonHasher(poseidon)
+        );
         await tree.insert(depositHonest.commitment);
         await tree.insert(depositAttacker.commitment);
 
@@ -257,10 +321,21 @@ describe("ETHTornado", function () {
             pathIndices: path_index,
         };
 
-        const wasmPath = path.join(__dirname, "../build/withdraw.wasm");
+        const wasmPath = path.join(
+            __dirname,
+            "../build/withdraw_js/withdraw.wasm"
+        );
         const zkeyPath = path.join(__dirname, "../build/circuit_final.zkey");
 
-        const { proof } = await groth16.fullProve(witness, wasmPath, zkeyPath);
+        const wc = require("../build/withdraw_js/witness_calculator");
+        const buffer = readFileSync(wasmPath);
+        const witnessCalculator = await wc(buffer);
+        const witnessBuffer = await witnessCalculator.calculateWTNSBin(
+            witness,
+            0
+        );
+        const { proof, _ } = await groth16.prove(zkeyPath, witnessBuffer);
+
         const solProof = parseProof(proof);
 
         await tornado
